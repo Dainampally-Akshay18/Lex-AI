@@ -8,6 +8,9 @@ from .document import (
     UploadResponse,
     DeleteResponse
 )
+from .chat import ChatRequest, ChatResponse, ConversationHistory
+from .financial import FinancialExtractionResponse, FinancialTerm
+from .translation import TranslationRequest, TranslationResponse, LanguageCode, ContentType
 
 __all__ = [
     "SummaryResponse",
@@ -16,5 +19,14 @@ __all__ = [
     "DocumentWithText",
     "DocumentListResponse",
     "UploadResponse",
-    "DeleteResponse"
+    "DeleteResponse",
+    "ChatRequest",
+    "ChatResponse",
+    "ConversationHistory",
+    "FinancialExtractionResponse",
+    "FinancialTerm",
+    "TranslationRequest",
+    "TranslationResponse",
+    "LanguageCode",
+    "ContentType"
 ]
