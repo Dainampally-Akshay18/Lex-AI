@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import get_settings
 from app.database import close_database_connection
-from app.routers import health
+from app.routers import health, summary, risk, documents
 from app.middleware.exception_handler import (
     lexai_exception_handler,
     global_exception_handler
@@ -55,6 +55,9 @@ app.add_exception_handler(Exception, global_exception_handler)
 
 # Register routers
 app.include_router(health.router)
+app.include_router(documents.router)
+app.include_router(summary.router)
+app.include_router(risk.router)
 
 # Root endpoint
 @app.get("/")

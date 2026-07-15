@@ -9,3 +9,5 @@ semantic-kernel==1.14.0
 azure-ai-inference==1.0.0b5
 azure-core==1.32.0
 python-multipart==0.0.12
+pymupdf==1.24.13
+python-docx==1.1.2
