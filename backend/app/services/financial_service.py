@@ -6,7 +6,6 @@ from semantic_kernel.contents import ChatHistory
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.financial import FinancialExtractionResponse, FinancialTerm
 from app.services.semantic_kernel.plugins.financial_plugin import FinancialPlugin
-from app.database.repositories import DocumentRepository
 from app.utils.exceptions import AIServiceError, ValidationError, NotFoundError
 from app.utils.logger import get_logger
 
@@ -26,9 +25,8 @@ class FinancialService:
         """
         self.kernel = kernel
         self.plugin = FinancialPlugin()
-        self.document_repo = DocumentRepository(db)
     
-    async def extract_financial_from_text(self, document_id: str) -> FinancialExtractionResponse:
+    async def extract_financial_from_text(self, document_text: str) -> FinancialExtractionResponse:
         """
         Extract financial terms from document text.
         Used internally for analysis caching.
@@ -44,13 +42,11 @@ class FinancialService:
             AIServiceError: If AI processing fails
         """
         # Validate input
-        # if not document_text or not document_text.strip():
-        #     raise ValidationError("Document text cannot be empty")
+        if not document_text or not document_text.strip():
+            raise ValidationError("Document text cannot be empty")
         
         logger.info("Financial extraction started")
         start_time = time.time()
-        document = await self.document_repo.get_document_by_id(document_id, include_text=True)
-        document_text=document_text = document.get("documentText", "")
         
         try:
             # Prepare chat history with system and user prompts
@@ -92,7 +88,7 @@ class FinancialService:
             
             # Create response
             financial_response = FinancialExtractionResponse(
-                document_id=document_id,
+                document_id="pending",
                 payment_amount=response_data.get("payment_amount"),
                 currency=response_data.get("currency"),
                 taxes=response_data.get("taxes"),
@@ -152,7 +148,7 @@ class FinancialService:
             raise ValidationError("Document has no text content")
         
         # Extract financial from text
-        result = await self.extract_financial_from_text(document_id, document_text)
+        result = await self.extract_financial_from_text(document_text)
         
         # Preserve the source document identifier for caching and retrieval
         result.document_id = document_id

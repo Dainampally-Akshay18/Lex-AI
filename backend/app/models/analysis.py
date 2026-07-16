@@ -37,6 +37,7 @@ class AnalysisResponse(BaseModel):
     
     class Config:
         populate_by_name = True
+        protected_namespaces = ()
         json_schema_extra = {
             "example": {
                 "_id": "507f1f77bcf86cd799439011",
