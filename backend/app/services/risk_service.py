@@ -95,5 +95,9 @@ class RiskService:
             raise
         
         except Exception as e:
-            logger.error(f"Risk analysis failed: {str(e)}")
+            logger.error(f"Risk analysis failed: {str(e)}", exc_info=True)
+            # Check for Azure-specific errors
+            error_msg = str(e)
+            if "BadRequest" in error_msg or "API version" in error_msg:
+                raise AIServiceError(f"Azure AI Foundry error: {error_msg}")
             raise AIServiceError(f"Failed to analyze risk: {str(e)}")

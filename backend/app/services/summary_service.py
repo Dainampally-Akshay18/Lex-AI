@@ -5,6 +5,7 @@ from semantic_kernel import Kernel
 from semantic_kernel.contents import ChatHistory
 from app.models.summary import SummaryResponse
 from app.services.semantic_kernel.plugins.summary_plugin import SummaryPlugin
+from app.config import get_settings
 from app.utils.exceptions import AIServiceError, ValidationError
 from app.utils.logger import get_logger
 
@@ -54,6 +55,9 @@ class SummaryService:
             # Get chat completion service from kernel
             chat_service = self.kernel.get_service()
             
+            settings = get_settings()
+            logger.info(f"Invoking AI service for summary - Deployment: {settings.CHAT_DEPLOYMENT}")
+            
             # Invoke AI model
             response = await chat_service.get_chat_message_content(
                 chat_history=chat_history,
@@ -95,5 +99,9 @@ class SummaryService:
             raise
         
         except Exception as e:
-            logger.error(f"Summary generation failed: {str(e)}")
+            logger.error(f"Summary generation failed: {str(e)}", exc_info=True)
+            # Check for Azure-specific errors
+            error_msg = str(e)
+            if "BadRequest" in error_msg or "API version" in error_msg:
+                raise AIServiceError(f"Azure AI Foundry error: {error_msg}")
             raise AIServiceError(f"Failed to generate summary: {str(e)}")
