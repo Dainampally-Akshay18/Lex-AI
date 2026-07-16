@@ -1,7 +1,10 @@
+// components/layout/DashboardLayout.tsx
 'use client';
 
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
+import { LogOut, LayoutDashboard, Upload, ChevronDown, Bell, Settings, User } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
@@ -14,60 +17,112 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
-    { name: 'Upload', href: '/upload', icon: '📤' },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Upload', href: '/upload', icon: Upload },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50/40 text-slate-900">
-      <nav className="border-b border-slate-200/80 bg-white/85 backdrop-blur-xl">
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-8">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-sm font-semibold text-white shadow-sm">
-                  L
-                </div>
-                <div>
-                  <h1 className="text-base font-semibold tracking-tight text-slate-900">LexAI</h1>
-                  <p className="text-xs text-slate-500">Enterprise analysis workspace</p>
-                </div>
+            {/* Left Section - Logo & Brand */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10">
+                <Image
+                  src="/logo.png"
+                  alt="LexAI Logo"
+                  fill
+                  className="object-contain"
+                  priority
+                />
               </div>
-              <div className="hidden sm:flex sm:space-x-2">
-                {navigation.map((item) => (
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-bold text-gray-900 tracking-tight">LexAI</span>
+                <span className="hidden sm:inline text-xs font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                  Enterprise
+                </span>
+              </div>
+            </div>
+
+            {/* Navigation Links */}
+            <div className="hidden md:flex items-center gap-1">
+              {navigation.map((item) => {
+                const isActive = pathname === item.href;
+                return (
                   <button
                     key={item.name}
                     onClick={() => router.push(item.href)}
-                    className={`inline-flex items-center rounded-full px-4 py-2 text-sm font-medium transition ${
-                      pathname === item.href
-                        ? 'bg-slate-900 text-white shadow-sm'
-                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      isActive
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <span className="mr-2">{item.icon}</span>
+                    <item.icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
                     {item.name}
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-slate-900">{user?.name}</p>
-                <p className="text-xs text-slate-500">{user?.email}</p>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="inline-flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                Logout
+
+            {/* Right Section - User & Actions */}
+            <div className="flex items-center gap-3">
+              <button className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg transition-all">
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-blue-600 rounded-full" />
               </button>
+              
+              <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
+                <div className="text-right hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{user?.name}</p>
+                  <p className="text-xs text-gray-500">{user?.email}</p>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                    {user?.name?.charAt(0).toUpperCase() || 'U'}
+                  </div>
+                  
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-red-600 transition-all"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span className="hidden md:inline">Logout</span>
+                  </button>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        <div className="md:hidden border-t border-gray-100 bg-gray-50/50">
+          <div className="flex justify-around px-4 py-2">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => router.push(item.href)}
+                  className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-all ${
+                    isActive ? 'text-blue-600' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <span className="text-xs font-medium">{item.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </nav>
 
-      <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
-        <div className="px-4 sm:px-0">{children}</div>
+      {/* Main Content */}
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        {children}
       </main>
     </div>
   );

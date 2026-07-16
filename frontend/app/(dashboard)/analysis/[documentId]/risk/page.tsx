@@ -1,3 +1,4 @@
+// app/(dashboard)/analysis/[documentId]/risk/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -135,6 +136,15 @@ export default function AnalysisRiskPage() {
     .sort((a, b) => b.score - a.score)
     .slice(0, 5);
 
+  // Custom label formatter to handle undefined percent
+  const renderCustomLabel = (props: any) => {
+    const { name, percent } = props;
+    if (percent === undefined || percent === null) {
+      return `${name} 0%`;
+    }
+    return `${name} ${(percent * 100).toFixed(0)}%`;
+  };
+
   return (
     <section className="space-y-8">
       {/* Compact Header */}
@@ -178,7 +188,6 @@ export default function AnalysisRiskPage() {
               {risk.overall_risk_level}
             </span>
           </div>
-          {/* <p className="mt-4 text-sm leading-6 text-slate-600">{risk.summary}</p> */}
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/80 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
@@ -206,7 +215,7 @@ export default function AnalysisRiskPage() {
                     outerRadius={150}
                     paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={renderCustomLabel}
                     labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                   >
                     {categoryData.map((entry, index) => (
@@ -242,10 +251,9 @@ export default function AnalysisRiskPage() {
                   endAngle={0}
                 >
                   <RadialBar
-                    minAngle={15}
-                    clockWise
                     dataKey="value"
                     background={{ fill: '#f1f5f9' }}
+                    cornerRadius={10}
                   />
                   <text
                     x="50%"
@@ -335,7 +343,7 @@ export default function AnalysisRiskPage() {
                     outerRadius={130}
                     paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={renderCustomLabel}
                     labelLine={{ stroke: '#94a3b8', strokeWidth: 1 }}
                   >
                     {severityData.map((entry) => (
