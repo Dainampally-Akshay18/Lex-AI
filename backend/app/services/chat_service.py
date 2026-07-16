@@ -80,8 +80,8 @@ class ChatService:
             response = await chat_service.get_chat_message_content(
                 chat_history=chat_history,
                 settings=chat_service.get_prompt_execution_settings_class()(
-                    temperature=0.2,
-                    max_tokens=4000
+                    temperature=1,
+                    max_completion_tokens=4000
                 )
             )
             

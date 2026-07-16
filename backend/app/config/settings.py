@@ -25,9 +25,10 @@ class Settings(BaseSettings):
     # Microsoft AI Foundry
     FOUNDRY_PROJECT_ENDPOINT: str
     FOUNDRY_API_KEY: str
+    OPEN_AI_CLIENT : str
     
     # Model Deployments
-    CHAT_DEPLOYMENT: str = "lexai-gpt"
+    CHAT_DEPLOYMENT: str = "gpt-5-mini"
     
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
