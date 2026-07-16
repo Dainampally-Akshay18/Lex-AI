@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.chat import ChatResponse, ConversationHistory, ConversationMessage
 from app.services.semantic_kernel.plugins.chat_plugin import ChatPlugin
 from app.database.repositories import DocumentRepository, ChatRepository
-from app.utils.exceptions import AIServiceError, ValidationError, NotFoundError
+from app.utils.exceptions import AIServiceError, ValidationError, NotFoundError, AuthorizationError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -29,7 +29,7 @@ class ChatService:
         self.document_repo = DocumentRepository(db)
         self.chat_repo = ChatRepository(db)
     
-    async def ask_question(self, document_id: str, question: str) -> ChatResponse:
+    async def ask_question(self, document_id: str, question: str, user_id: str) -> ChatResponse:
         """
         Ask a question about a legal document.
         
@@ -57,6 +57,9 @@ class ChatService:
             document = await self.document_repo.get_document_by_id(document_id, include_text=True)
             if not document:
                 raise NotFoundError(f"Document not found: {document_id}")
+
+            if document.get("userId") != user_id:
+                raise AuthorizationError("Access denied: You don't have permission to chat with this document")
             
             document_text = document.get("documentText", "")
             if not document_text:
@@ -149,16 +152,24 @@ class ChatService:
         
         return "\n".join(formatted)
     
-    async def get_conversation_history(self, document_id: str) -> ConversationHistory:
+    async def get_conversation_history(self, document_id: str, user_id: str) -> ConversationHistory:
         """
         Get conversation history for a document.
         
         Args:
             document_id: Document ID
+            user_id: User ID
             
         Returns:
             ConversationHistory with all messages
         """
+        document = await self.document_repo.get_document_by_id(document_id, include_text=False)
+        if not document:
+            raise NotFoundError(f"Document not found: {document_id}")
+
+        if document.get("userId") != user_id:
+            raise AuthorizationError("Access denied: You don't have permission to chat with this document")
+
         messages = await self.chat_repo.get_conversation_history(document_id)
         
         conversation_messages = [

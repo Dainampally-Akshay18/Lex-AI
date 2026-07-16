@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { chatAPI, documentsAPI, getApiErrorMessage } from '@/lib/api';
 import type { ConversationHistory, Document } from '@/types';
@@ -15,6 +15,13 @@ export default function AnalysisChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   useEffect(() => {
     const loadChat = async () => {
@@ -39,11 +46,15 @@ export default function AnalysisChatPage() {
     void loadChat();
   }, [documentId]);
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [history, isLoading]);
+
   const handleAskQuestion = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedQuestion = question.trim();
-    if (!trimmedQuestion) {
+    if (!trimmedQuestion || isSubmitting) {
       return;
     }
 
@@ -67,6 +78,11 @@ export default function AnalysisChatPage() {
         ],
       }));
       setQuestion('');
+      
+      // Reset textarea height
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
     } catch (err: unknown) {
       setError(getApiErrorMessage(err));
     } finally {
@@ -74,105 +90,175 @@ export default function AnalysisChatPage() {
     }
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      const form = event.currentTarget.form;
+      if (form) {
+        form.requestSubmit();
+      }
+    }
+  };
+
+  const handleTextareaChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setQuestion(event.target.value);
+    
+    // Auto-resize textarea
+    const textarea = event.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+  };
+
   if (isLoading) {
     return <WorkspaceLoading title="AI chat" />;
   }
 
+  const messages = history?.messages || [];
+
   return (
-    <section className="space-y-6">
-      <WorkspaceHeader
-        title="AI chat"
-        description="Ask follow-up questions against cached conversation history for the selected document."
-        documentInfo={documentInfo}
-      />
+    <div className="flex h-[calc(100vh-5rem)] flex-col">
+      {/* Compact Header */}
+      <WorkspaceHeader documentInfo={documentInfo} />
 
-      {error && <WorkspaceError title="AI chat" message={error} />}
+      {/* Error Message */}
+      {error && <WorkspaceError message={error} />}
 
-      <form onSubmit={handleAskQuestion} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <label htmlFor="question" className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
-          Ask a question
-        </label>
-        <textarea
-          id="question"
-          value={question}
-          onChange={(event) => setQuestion(event.target.value)}
-          rows={4}
-          className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
-          placeholder="What are the strongest termination risks in this agreement?"
-        />
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-slate-500">Responses are appended to the cached conversation history.</p>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSubmitting ? 'Asking...' : 'Ask question'}
-          </button>
-        </div>
-      </form>
-
-      <div className="space-y-4">
-        {history?.messages.length ? (
-          history.messages
-            .slice()
-            .reverse()
-            .map((message, index) => (
-              <article key={`${message.timestamp}-${index}`} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Conversation {index + 1}</p>
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">Question</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-900">{message.question}</p>
+      {/* Conversation Area - Takes up ~75% of available space */}
+      <div className="flex-1 overflow-hidden rounded-3xl border border-slate-200 bg-white/90 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+        <div className="h-full overflow-y-auto p-6">
+          {messages.length === 0 ? (
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <div className="max-w-md">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
+                  💬
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">No conversation yet</h3>
+                <p className="mt-2 text-sm text-slate-500">
+                  Start the conversation by asking a question about your document below.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {messages.map((message, index) => (
+                <div key={`${message.timestamp}-${index}`} className="space-y-2">
+                  {/* User message - aligned right */}
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-2xl rounded-br-none bg-slate-950 px-4 py-3">
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-white">{message.question}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-500">Answer</p>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-700">{message.answer}</p>
+
+                  {/* AI message - aligned left */}
+                  <div className="flex justify-start">
+                    <div className="max-w-[85%] rounded-2xl rounded-bl-none border border-slate-200 bg-white px-4 py-3">
+                      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{message.answer}</p>
+                      {message.clause_references.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {message.clause_references.map((reference) => (
+                            <span
+                              key={reference}
+                              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+                            >
+                              {reference}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {message.clause_references.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium text-slate-500">Clause references</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {message.clause_references.map((reference) => (
-                          <span key={reference} className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                            {reference}
-                          </span>
-                        ))}
-                      </div>
+                  
+                  {message.timestamp && (
+                    <div className="px-2 text-right">
+                      <span className="text-xs text-slate-400">
+                        {new Date(message.timestamp).toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
                     </div>
                   )}
                 </div>
-              </article>
-            ))
-        ) : (
-          <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-8 text-center text-sm text-slate-500">
-            No conversation history is cached yet.
-          </div>
-        )}
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
       </div>
-    </section>
+
+      {/* Fixed Input at Bottom */}
+      <div className="mt-4 flex-shrink-0">
+        <form onSubmit={handleAskQuestion} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label htmlFor="question" className="sr-only">
+                Ask a question
+              </label>
+              <textarea
+                ref={textareaRef}
+                id="question"
+                value={question}
+                onChange={handleTextareaChange}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+                placeholder="Ask a question about your document..."
+                disabled={isSubmitting}
+                style={{ minHeight: '52px', maxHeight: '150px' }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !question.trim()}
+              className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full bg-slate-950 text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+              aria-label="Send message"
+            >
+              {isSubmitting ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="h-5 w-5"
+                >
+                  <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <div className="mt-2 flex justify-between text-xs text-slate-400">
+            <span>Press Enter to send · Shift + Enter for new line</span>
+            <span>{question.length} characters</span>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 
-function WorkspaceHeader({
-  title,
-  description,
-  documentInfo,
-}: {
-  title: string;
-  description: string;
-  documentInfo: Document | null;
-}) {
+function WorkspaceHeader({ documentInfo }: { documentInfo: Document | null }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-      <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">{title}</p>
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">{documentInfo?.fileName || 'Document'}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{description}</p>
+    <div className="mb-3 flex-shrink-0 rounded-3xl border border-slate-200 bg-white/90 px-6 py-3 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg font-semibold text-slate-700">
+            📄
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-950">
+              {documentInfo?.fileName || 'Document'}
+            </h2>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>{documentInfo?.fileType || 'File'}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-300"></span>
+              <span>{documentInfo?.language || 'Unknown language'}</span>
+            </div>
+          </div>
         </div>
-        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
-          {documentInfo?.fileType || 'File'} · {documentInfo?.language || 'Unknown language'}
+        <div className="flex items-center gap-2">
+          <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+          <span className="text-xs text-slate-500">Ready</span>
         </div>
       </div>
     </div>
@@ -181,18 +267,19 @@ function WorkspaceHeader({
 
 function WorkspaceLoading({ title }: { title: string }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-      <p className="text-sm font-medium text-slate-500">Loading {title.toLowerCase()}...</p>
-      <div className="mt-4 h-48 animate-pulse rounded-2xl bg-slate-100" />
+    <div className="flex h-[calc(100vh-5rem)] items-center justify-center rounded-3xl border border-slate-200 bg-white/90 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+      <div className="text-center">
+        <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-slate-950" />
+        <p className="text-sm font-medium text-slate-500">Loading {title.toLowerCase()}...</p>
+      </div>
     </div>
   );
 }
 
-function WorkspaceError({ title, message }: { title: string; message: string }) {
+function WorkspaceError({ message }: { message: string }) {
   return (
-    <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-900">
-      <p className="text-xs font-medium uppercase tracking-[0.22em] text-rose-500">{title}</p>
-      <p className="mt-2 text-sm leading-6">{message}</p>
+    <div className="mb-3 flex-shrink-0 rounded-3xl border border-rose-200 bg-rose-50 p-4 text-rose-900">
+      <p className="text-sm leading-6">{message}</p>
     </div>
   );
 }
