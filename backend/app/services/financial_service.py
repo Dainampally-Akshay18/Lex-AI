@@ -28,7 +28,7 @@ class FinancialService:
         self.plugin = FinancialPlugin()
         self.document_repo = DocumentRepository(db)
     
-    async def extract_financial_from_text(self, document_text: str) -> FinancialExtractionResponse:
+    async def extract_financial_from_text(self, document_id: str) -> FinancialExtractionResponse:
         """
         Extract financial terms from document text.
         Used internally for analysis caching.
@@ -44,11 +44,13 @@ class FinancialService:
             AIServiceError: If AI processing fails
         """
         # Validate input
-        if not document_text or not document_text.strip():
-            raise ValidationError("Document text cannot be empty")
+        # if not document_text or not document_text.strip():
+        #     raise ValidationError("Document text cannot be empty")
         
         logger.info("Financial extraction started")
         start_time = time.time()
+        document = await self.document_repo.get_document_by_id(document_id, include_text=True)
+        document_text=document_text = document.get("documentText", "")
         
         try:
             # Prepare chat history with system and user prompts
@@ -150,9 +152,9 @@ class FinancialService:
             raise ValidationError("Document has no text content")
         
         # Extract financial from text
-        result = await self.extract_financial_from_text(document_text)
+        result = await self.extract_financial_from_text(document_id, document_text)
         
-        # Add document_id to response
+        # Preserve the source document identifier for caching and retrieval
         result.document_id = document_id
         
         return result

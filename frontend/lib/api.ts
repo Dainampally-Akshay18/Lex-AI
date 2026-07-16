@@ -4,6 +4,7 @@
  */
 
 import type {
+  AnalysisStatus,
   ChatRequest,
   ChatResponse,
   ConversationHistory,
@@ -241,6 +242,12 @@ export const documentsAPI = {
     return request<{ message: string; document_id: string }>(`/documents/${documentId}`, {
       method: 'DELETE',
     });
+  },
+};
+
+export const analysisAPI = {
+  getAnalysis: async (documentId: string) => {
+    return request<AnalysisStatus>(`/analysis/${documentId}`);
   },
 };
 

@@ -1,6 +1,7 @@
 """Document management API endpoints"""
 from fastapi import APIRouter, Depends, UploadFile, File, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from typing import Union
 from app.models.document import (
     DocumentResponse,
     DocumentWithText,
@@ -93,7 +94,7 @@ async def list_documents(
     return result
 
 
-@router.get("/{document_id}", response_model=DocumentWithText)
+@router.get("/{document_id}", response_model=Union[DocumentWithText, DocumentResponse])
 async def get_document(
     document_id: str,
     include_text: bool = Query(True, description="Include extracted document text"),

@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { analysisAPI, getApiErrorMessage } from '@/lib/api';
 import type { ReactNode } from 'react';
+import type { AnalysisStatus } from '@/types';
 import DashboardLayout from '@/components/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 
@@ -23,6 +26,62 @@ export default function AnalysisWorkspaceLayout({
   const router = useRouter();
   const params = useParams<{ documentId: string }>();
   const basePath = `/analysis/${params.documentId}`;
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus['status'] | null>(null);
+  const [statusError, setStatusError] = useState('');
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadAnalysisStatus = async () => {
+      try {
+        setStatusError('');
+        const analysis = await analysisAPI.getAnalysis(params.documentId);
+
+        if (!isCancelled) {
+          setAnalysisStatus(analysis.status);
+        }
+      } catch (err: unknown) {
+        if (!isCancelled) {
+          setAnalysisStatus('processing');
+          setStatusError(getApiErrorMessage(err));
+        }
+      }
+    };
+
+    void loadAnalysisStatus();
+    const intervalId = window.setInterval(() => {
+      void loadAnalysisStatus();
+    }, 12000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [params.documentId]);
+
+  const isReady = analysisStatus === 'completed';
+  const isFailed = analysisStatus === 'failed';
+
+  const statusPanel = isFailed ? (
+    <div className="rounded-3xl border border-rose-200 bg-rose-50 p-6 text-rose-900 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+      <p className="text-xs font-medium uppercase tracking-[0.22em] text-rose-500">Analysis failed</p>
+      <h2 className="mt-2 text-xl font-semibold text-rose-950">This document could not be analyzed.</h2>
+      <p className="mt-3 text-sm leading-6 text-rose-800">
+        {statusError || 'The backend reported a failed analysis state. Please return to the dashboard and try again later.'}
+      </p>
+    </div>
+  ) : !isReady ? (
+    <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
+      <p className="text-xs font-medium uppercase tracking-[0.22em] text-slate-500">Analysis in progress</p>
+      <h2 className="mt-2 text-xl font-semibold text-slate-950">Your analysis is still processing.</h2>
+      <p className="mt-3 text-sm leading-6 text-slate-600">
+        This workspace will unlock automatically when the backend marks the analysis as completed.
+      </p>
+      <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full w-1/2 animate-pulse rounded-full bg-slate-400" />
+      </div>
+    </div>
+  ) : null;
 
   return (
     <ProtectedRoute>
@@ -74,7 +133,7 @@ export default function AnalysisWorkspaceLayout({
             </div>
           </aside>
 
-          <div className="min-w-0 space-y-6">{children}</div>
+          <div className="min-w-0 space-y-6">{isReady ? children : statusPanel}</div>
         </div>
       </DashboardLayout>
     </ProtectedRoute>

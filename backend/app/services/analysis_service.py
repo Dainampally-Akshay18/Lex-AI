@@ -90,9 +90,28 @@ class AnalysisService:
             )
             
             # Check for exceptions
-            summary_data = summary_result.model_dump() if not isinstance(summary_result, Exception) else None
-            risk_data = risk_result.model_dump() if not isinstance(risk_result, Exception) else None
-            financial_data = financial_result.model_dump() if not isinstance(financial_result, Exception) else None
+            failed_components = []
+            summary_data = None
+            risk_data = None
+            financial_data = None
+
+            if isinstance(summary_result, Exception):
+                failed_components.append(f"summary: {summary_result}")
+            else:
+                summary_data = summary_result.model_dump()
+
+            if isinstance(risk_result, Exception):
+                failed_components.append(f"risk: {risk_result}")
+            else:
+                risk_data = risk_result.model_dump()
+
+            if isinstance(financial_result, Exception):
+                failed_components.append(f"financial: {financial_result}")
+            else:
+                financial_data = financial_result.model_dump()
+
+            if failed_components:
+                raise RuntimeError("; ".join(failed_components))
             
             # Update results
             await self.analysis_repo.update_results(

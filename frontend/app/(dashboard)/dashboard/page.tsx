@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import DashboardLayout from '@/components/DashboardLayout';
-import { documentsAPI, getApiErrorMessage } from '@/lib/api';
+import { analysisAPI, documentsAPI, getApiErrorMessage } from '@/lib/api';
 import { formatDistanceToNow } from '@/lib/utils';
-import type { Document } from '@/types';
+import type { AnalysisStatus, Document } from '@/types';
 
 export default function DashboardPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [analysisStatuses, setAnalysisStatuses] = useState<Record<string, AnalysisStatus | null>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -31,6 +32,52 @@ export default function DashboardPage() {
     void loadDocuments();
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadAnalysisStatuses = async () => {
+      if (documents.length === 0) {
+        setAnalysisStatuses({});
+        return;
+      }
+
+      try {
+        const statusEntries = await Promise.all(
+          documents.map(async (document) => {
+            try {
+              const analysis = await analysisAPI.getAnalysis(document._id);
+              return [document._id, analysis] as const;
+            } catch {
+              return [document._id, null] as const;
+            }
+          })
+        );
+
+        if (!isCancelled) {
+          setAnalysisStatuses((current) => {
+            const next = { ...current };
+            statusEntries.forEach(([documentId, analysis]) => {
+              next[documentId] = analysis;
+            });
+            return next;
+          });
+        }
+      } catch {
+        // Keep the previous status snapshot and retry on the next poll.
+      }
+    };
+
+    void loadAnalysisStatuses();
+    const intervalId = window.setInterval(() => {
+      void loadAnalysisStatuses();
+    }, 12000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [documents]);
+
   const handleDeleteDocument = async (documentId: string) => {
     if (!confirm('Are you sure you want to delete this document?')) {
       return;
@@ -42,6 +89,118 @@ export default function DashboardPage() {
     } catch (err: unknown) {
       alert(getApiErrorMessage(err));
     }
+  };
+
+  const getAnalysisStatus = (documentId: string) => analysisStatuses[documentId]?.status ?? 'processing';
+
+  const getAnalysisStatusLabel = (status: AnalysisStatus['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'Completed';
+      case 'failed':
+        return 'Failed';
+      case 'pending':
+      case 'processing':
+      default:
+        return 'Processing';
+    }
+  };
+
+  const getAnalysisActionLabel = (status: AnalysisStatus['status']) => {
+    if (status === 'completed') {
+      return 'View Analysis';
+    }
+
+    if (status === 'failed') {
+      return 'Analysis Failed';
+    }
+
+    return 'Analysis in Progress';
+  };
+
+  const renderDocumentCard = (doc: Document) => {
+    const analysisStatus = getAnalysisStatus(doc._id);
+    const statusLabel = getAnalysisStatusLabel(analysisStatus);
+    const actionLabel = getAnalysisActionLabel(analysisStatus);
+    const canOpenAnalysis = analysisStatus === 'completed';
+
+    return (
+      <article
+        key={doc._id}
+        className="group flex h-full flex-col justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                  />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <h3 className="truncate text-base font-semibold text-slate-950">{doc.fileName}</h3>
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                  {doc.fileType} · {doc.language}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleDeleteDocument(doc._id)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              aria-label={`Delete ${doc.fileName}`}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.8}
+                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                />
+              </svg>
+            </button>
+          </div>
+
+          <p className="text-sm leading-6 text-slate-600">
+            Uploaded {formatDistanceToNow(doc.uploadedAt)} · Current status {statusLabel}
+          </p>
+        </div>
+
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+              analysisStatus === 'completed'
+                ? 'bg-emerald-50 text-emerald-700'
+                : analysisStatus === 'failed'
+                  ? 'bg-rose-50 text-rose-700'
+                  : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {statusLabel}
+          </span>
+          {canOpenAnalysis ? (
+            <Link
+              href={`/analysis/${doc._id}`}
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
+            >
+              {actionLabel}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center justify-center rounded-full bg-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500"
+            >
+              {actionLabel}
+            </button>
+          )}
+        </div>
+      </article>
+    );
   };
 
   return (
@@ -122,63 +281,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {documents.map((doc) => (
-                <article
-                  key={doc._id}
-                  className="group flex h-full flex-col justify-between rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.8}
-                              d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                            />
-                          </svg>
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="truncate text-base font-semibold text-slate-950">{doc.fileName}</h3>
-                          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
-                            {doc.fileType} · {doc.language}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDeleteDocument(doc._id)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                        aria-label={`Delete ${doc.fileName}`}
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={1.8}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <p className="text-sm leading-6 text-slate-600">Uploaded {formatDistanceToNow(doc.uploadedAt)}</p>
-                  </div>
-
-                  <div className="mt-6 flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                      Ready for analysis
-                    </span>
-                    <Link
-                      href={`/analysis/${doc._id}`}
-                      className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-800"
-                    >
-                      View Analysis
-                    </Link>
-                  </div>
-                </article>
-              ))}
+              {documents.map(renderDocumentCard)}
             </div>
           )}
         </div>
