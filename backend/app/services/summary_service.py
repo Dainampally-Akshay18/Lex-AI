@@ -3,10 +3,12 @@ import json
 import time
 from semantic_kernel import Kernel
 from semantic_kernel.contents import ChatHistory
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.summary import SummaryResponse
 from app.services.semantic_kernel.plugins.summary_plugin import SummaryPlugin
+from app.database.repositories import DocumentRepository
 from app.config import get_settings
-from app.utils.exceptions import AIServiceError, ValidationError
+from app.utils.exceptions import AIServiceError, ValidationError, NotFoundError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,38 +17,46 @@ logger = get_logger(__name__)
 class SummaryService:
     """Service for document summarization using Semantic Kernel"""
     
-    def __init__(self, kernel: Kernel):
+    def __init__(self, kernel: Kernel, db: AsyncIOMotorDatabase):
         """
         Initialize summary service with Semantic Kernel.
         
         Args:
             kernel: Configured Semantic Kernel instance
+            db: MongoDB database instance
         """
         self.kernel = kernel
         self.plugin = SummaryPlugin()
+        self.document_repo = DocumentRepository(db)
     
-    async def generate_summary(self, document_text: str) -> SummaryResponse:
+    async def generate_summary(self, document_id: str) -> SummaryResponse:
         """
         Generate comprehensive summary of a legal document.
         
         Args:
-            document_text: The full text of the legal document
+            document_id: Document ID
             
         Returns:
             SummaryResponse containing all summary components
             
         Raises:
-            ValidationError: If document text is empty or invalid
+            NotFoundError: If document not found
+            ValidationError: If document has no text
             AIServiceError: If AI processing fails
         """
-        # Validate input
-        if not document_text or not document_text.strip():
-            raise ValidationError("Document text cannot be empty")
-        
-        logger.info("AI summarization request started")
+        logger.info(f"AI summarization request started for document: {document_id}")
         start_time = time.time()
         
         try:
+            # Retrieve document
+            document = await self.document_repo.get_document_by_id(document_id, include_text=True)
+            if not document:
+                raise NotFoundError(f"Document not found: {document_id}")
+            
+            document_text = document.get("documentText", "")
+            if not document_text:
+                raise ValidationError("Document has no text content")
+            
             # Prepare chat history with system and user prompts
             chat_history = ChatHistory()
             chat_history.add_system_message(self.plugin.get_system_prompt())
@@ -95,7 +105,7 @@ class SummaryService:
             logger.error(f"Failed to parse AI response as JSON: {str(e)}")
             raise AIServiceError("AI returned invalid JSON response")
         
-        except ValidationError:
+        except (ValidationError, NotFoundError):
             raise
         
         except Exception as e:

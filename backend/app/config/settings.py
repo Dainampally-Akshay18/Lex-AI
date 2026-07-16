@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     OPEN_AI_CLIENT : str
     
     # Model Deployments
-    CHAT_DEPLOYMENT: str = "gpt-5-mini"
+    CHAT_DEPLOYMENT: str = "gpt-5-mini-2"
     
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"

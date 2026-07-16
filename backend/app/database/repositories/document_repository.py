@@ -154,3 +154,40 @@ class DocumentRepository:
         except Exception as e:
             logger.error(f"Failed to delete document: {str(e)}")
             raise DatabaseError(f"Failed to delete document: {str(e)}")
+
+    async def list_user_documents(self, user_id: str, limit: int = 100, skip: int = 0) -> tuple[List[dict], int]:
+        """
+        List all documents for a specific user with pagination.
+        
+        Args:
+            user_id: User ID to filter documents
+            limit: Maximum number of documents to return
+            skip: Number of documents to skip
+            
+        Returns:
+            Tuple of (documents list, total count)
+            
+        Raises:
+            DatabaseError: If database operation fails
+        """
+        try:
+            # Get documents for user without text field
+            cursor = self.collection.find(
+                {"userId": user_id},
+                {"documentText": 0}
+            ).sort("uploadedAt", -1).skip(skip).limit(limit)
+            
+            documents = await cursor.to_list(length=limit)
+            
+            # Convert ObjectId to string
+            for doc in documents:
+                doc["_id"] = str(doc["_id"])
+            
+            # Get total count for user
+            total = await self.collection.count_documents({"userId": user_id})
+            
+            return documents, total
+            
+        except Exception as e:
+            logger.error(f"Failed to list user documents: {str(e)}")
+            raise DatabaseError(f"Failed to list user documents: {str(e)}")

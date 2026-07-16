@@ -11,6 +11,7 @@ from .document import (
 from .chat import ChatRequest, ChatResponse, ConversationHistory
 from .financial import FinancialExtractionResponse, FinancialTerm
 from .translation import TranslationRequest, TranslationResponse, LanguageCode, ContentType
+from .user import UserCreate, UserLogin, TokenResponse, UserResponse, User
 
 __all__ = [
     "SummaryResponse",
@@ -28,5 +29,10 @@ __all__ = [
     "TranslationRequest",
     "TranslationResponse",
     "LanguageCode",
-    "ContentType"
+    "ContentType",
+    "UserCreate",
+    "UserLogin",
+    "TokenResponse",
+    "UserResponse",
+    "User"
 ]

@@ -16,7 +16,7 @@ from app.models.document import (
 from app.database.repositories import DocumentRepository
 from app.services.pdf_processor import extract_text_from_pdf, extract_text_from_docx
 from app.config import get_settings
-from app.utils.exceptions import ValidationError, NotFoundError
+from app.utils.exceptions import ValidationError, NotFoundError, AuthorizationError
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -293,6 +293,115 @@ class DocumentService:
         
         if not document:
             raise NotFoundError(f"Document not found: {document_id}")
+        
+        # Delete from database
+        await self.repository.delete_document(document_id)
+        logger.info(f"Document deleted from database: {document_id}")
+        
+        # Delete file from disk
+        try:
+            stored_filename = document.get("storedFileName")
+            if stored_filename:
+                file_path = self.upload_dir / stored_filename
+                if file_path.exists():
+                    os.remove(file_path)
+                    logger.info(f"File deleted from disk: {stored_filename}")
+        except Exception as e:
+            logger.error(f"Failed to delete file from disk: {str(e)}")
+            # Continue even if file deletion fails
+        
+        return DeleteResponse(
+            message="Document deleted successfully",
+            document_id=document_id
+        )
+
+    async def list_user_documents(
+        self,
+        user_id: str,
+        limit: int = 100,
+        skip: int = 0
+    ) -> DocumentListResponse:
+        """
+        List all documents for a specific user with pagination.
+        
+        Args:
+            user_id: User ID to filter documents
+            limit: Maximum number of documents to return
+            skip: Number of documents to skip
+            
+        Returns:
+            DocumentListResponse with user's documents list
+        """
+        documents, total = await self.repository.list_user_documents(user_id, limit, skip)
+        
+        document_responses = [DocumentResponse(**doc) for doc in documents]
+        
+        return DocumentListResponse(
+            documents=document_responses,
+            total=total
+        )
+    
+    async def get_user_document(
+        self,
+        document_id: str,
+        user_id: str,
+        include_text: bool = False
+    ):
+        """
+        Get a document by ID with ownership verification.
+        
+        Args:
+            document_id: Document ID
+            user_id: User ID to verify ownership
+            include_text: Whether to include extracted text
+            
+        Returns:
+            DocumentResponse or DocumentWithText
+            
+        Raises:
+            NotFoundError: If document not found
+            AuthorizationError: If user doesn't own the document
+        """
+        document = await self.repository.get_document_by_id(document_id, include_text)
+        
+        if not document:
+            raise NotFoundError(f"Document not found: {document_id}")
+        
+        # Verify ownership
+        if document.get("userId") != user_id:
+            raise AuthorizationError("Access denied: You don't have permission to access this document")
+        
+        if include_text:
+            return DocumentWithText(**document)
+        else:
+            return DocumentResponse(**document)
+    
+    async def delete_user_document(self, document_id: str, user_id: str) -> DeleteResponse:
+        """
+        Delete a document by ID with ownership verification.
+        
+        Args:
+            document_id: Document ID
+            user_id: User ID to verify ownership
+            
+        Returns:
+            DeleteResponse
+            
+        Raises:
+            NotFoundError: If document not found
+            AuthorizationError: If user doesn't own the document
+        """
+        logger.info(f"Deleting document: {document_id} for user: {user_id}")
+        
+        # Get document to retrieve stored filename and verify ownership
+        document = await self.repository.get_document_by_id(document_id, include_text=False)
+        
+        if not document:
+            raise NotFoundError(f"Document not found: {document_id}")
+        
+        # Verify ownership
+        if document.get("userId") != user_id:
+            raise AuthorizationError("Access denied: You don't have permission to delete this document")
         
         # Delete from database
         await self.repository.delete_document(document_id)
