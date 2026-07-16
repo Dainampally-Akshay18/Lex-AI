@@ -12,6 +12,7 @@ from .chat import ChatRequest, ChatResponse, ConversationHistory
 from .financial import FinancialExtractionResponse, FinancialTerm
 from .translation import TranslationRequest, TranslationResponse, LanguageCode, ContentType
 from .user import UserCreate, UserLogin, TokenResponse, UserResponse, User
+from .analysis import AnalysisStatus, AnalysisCreate, AnalysisResponse
 
 __all__ = [
     "SummaryResponse",
@@ -34,5 +35,8 @@ __all__ = [
     "UserLogin",
     "TokenResponse",
     "UserResponse",
-    "User"
+    "User",
+    "AnalysisStatus",
+    "AnalysisCreate",
+    "AnalysisResponse"
 ]

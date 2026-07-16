@@ -29,34 +29,29 @@ class SummaryService:
         self.plugin = SummaryPlugin()
         self.document_repo = DocumentRepository(db)
     
-    async def generate_summary(self, document_id: str) -> SummaryResponse:
+    async def generate_summary_from_text(self, document_text: str) -> SummaryResponse:
         """
-        Generate comprehensive summary of a legal document.
+        Generate comprehensive summary from document text.
+        Used internally for analysis caching.
         
         Args:
-            document_id: Document ID
+            document_text: The full text of the legal document
             
         Returns:
             SummaryResponse containing all summary components
             
         Raises:
-            NotFoundError: If document not found
-            ValidationError: If document has no text
+            ValidationError: If document text is empty or invalid
             AIServiceError: If AI processing fails
         """
-        logger.info(f"AI summarization request started for document: {document_id}")
+        # Validate input
+        if not document_text or not document_text.strip():
+            raise ValidationError("Document text cannot be empty")
+        
+        logger.info("AI summarization request started")
         start_time = time.time()
         
         try:
-            # Retrieve document
-            document = await self.document_repo.get_document_by_id(document_id, include_text=True)
-            if not document:
-                raise NotFoundError(f"Document not found: {document_id}")
-            
-            document_text = document.get("documentText", "")
-            if not document_text:
-                raise ValidationError("Document has no text content")
-            
             # Prepare chat history with system and user prompts
             chat_history = ChatHistory()
             chat_history.add_system_message(self.plugin.get_system_prompt())
@@ -115,3 +110,33 @@ class SummaryService:
             if "BadRequest" in error_msg or "API version" in error_msg:
                 raise AIServiceError(f"Azure AI Foundry error: {error_msg}")
             raise AIServiceError(f"Failed to generate summary: {str(e)}")
+
+    async def generate_summary(self, document_id: str) -> SummaryResponse:
+        """
+        Generate comprehensive summary of a legal document.
+        Retrieves document and calls text-based generation.
+        
+        Args:
+            document_id: Document ID
+            
+        Returns:
+            SummaryResponse containing all summary components
+            
+        Raises:
+            NotFoundError: If document not found
+            ValidationError: If document has no text
+            AIServiceError: If AI processing fails
+        """
+        logger.info(f"AI summarization request started for document: {document_id}")
+        
+        # Retrieve document
+        document = await self.document_repo.get_document_by_id(document_id, include_text=True)
+        if not document:
+            raise NotFoundError(f"Document not found: {document_id}")
+        
+        document_text = document.get("documentText", "")
+        if not document_text:
+            raise ValidationError("Document has no text content")
+        
+        # Generate summary from text
+        return await self.generate_summary_from_text(document_text)

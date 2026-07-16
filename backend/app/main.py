@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.config import get_settings
 from app.database import close_database_connection
-from app.routers import health, summary, risk, documents, chat, financial, translate, auth
+from app.routers import health, summary, risk, documents, chat, financial, translate, auth, analysis
 from app.middleware.exception_handler import (
     lexai_exception_handler,
     global_exception_handler
@@ -43,7 +43,7 @@ app = FastAPI(
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +57,7 @@ app.add_exception_handler(Exception, global_exception_handler)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(documents.router)
+app.include_router(analysis.router)
 app.include_router(summary.router)
 app.include_router(risk.router)
 app.include_router(chat.router)

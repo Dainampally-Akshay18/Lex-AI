@@ -203,6 +203,18 @@ class DocumentService:
             document_id = await self.repository.create_document(document_create)
             logger.info(f"Document stored in database: {document_id}")
             
+            # Trigger analysis generation in background
+            try:
+                from app.services.analysis_service import AnalysisService
+                from app.services.semantic_kernel import get_kernel
+                
+                analysis_service = AnalysisService(get_kernel(), self.db)
+                await analysis_service.generate_analysis(document_id, user_id)
+                logger.info(f"Analysis generation triggered for document: {document_id}")
+            except Exception as e:
+                logger.error(f"Failed to trigger analysis generation: {str(e)}")
+                # Don't fail the upload if analysis trigger fails
+            
             # Return response
             return UploadResponse(
                 message="Document uploaded successfully",

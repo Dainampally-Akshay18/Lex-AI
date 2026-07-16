@@ -28,34 +28,29 @@ class FinancialService:
         self.plugin = FinancialPlugin()
         self.document_repo = DocumentRepository(db)
     
-    async def extract_financial_terms(self, document_id: str) -> FinancialExtractionResponse:
+    async def extract_financial_from_text(self, document_text: str) -> FinancialExtractionResponse:
         """
-        Extract financial terms from a legal document.
+        Extract financial terms from document text.
+        Used internally for analysis caching.
         
         Args:
-            document_id: Document ID
+            document_text: The full text of the legal document
             
         Returns:
             FinancialExtractionResponse with extracted financial terms
             
         Raises:
-            NotFoundError: If document not found
-            ValidationError: If document has no text
+            ValidationError: If document text is empty
             AIServiceError: If AI processing fails
         """
-        logger.info(f"Financial extraction started for document: {document_id}")
+        # Validate input
+        if not document_text or not document_text.strip():
+            raise ValidationError("Document text cannot be empty")
+        
+        logger.info("Financial extraction started")
         start_time = time.time()
         
         try:
-            # Retrieve document
-            document = await self.document_repo.get_document_by_id(document_id, include_text=True)
-            if not document:
-                raise NotFoundError(f"Document not found: {document_id}")
-            
-            document_text = document.get("documentText", "")
-            if not document_text:
-                raise ValidationError("Document has no text content")
-            
             # Prepare chat history with system and user prompts
             chat_history = ChatHistory()
             chat_history.add_system_message(self.plugin.get_system_prompt())
@@ -126,3 +121,38 @@ class FinancialService:
             if "BadRequest" in error_msg or "API version" in error_msg:
                 raise AIServiceError(f"Azure AI Foundry error: {error_msg}")
             raise AIServiceError(f"Failed to extract financial terms: {str(e)}")
+
+    async def extract_financial_terms(self, document_id: str) -> FinancialExtractionResponse:
+        """
+        Extract financial terms from a legal document.
+        Retrieves document and calls text-based extraction.
+        
+        Args:
+            document_id: Document ID
+            
+        Returns:
+            FinancialExtractionResponse with extracted financial terms
+            
+        Raises:
+            NotFoundError: If document not found
+            ValidationError: If document has no text
+            AIServiceError: If AI processing fails
+        """
+        logger.info(f"Financial extraction started for document: {document_id}")
+        
+        # Retrieve document
+        document = await self.document_repo.get_document_by_id(document_id, include_text=True)
+        if not document:
+            raise NotFoundError(f"Document not found: {document_id}")
+        
+        document_text = document.get("documentText", "")
+        if not document_text:
+            raise ValidationError("Document has no text content")
+        
+        # Extract financial from text
+        result = await self.extract_financial_from_text(document_text)
+        
+        # Add document_id to response
+        result.document_id = document_id
+        
+        return result
