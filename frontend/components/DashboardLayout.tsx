@@ -19,6 +19,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Upload', href: '/upload', icon: Upload },
+    {name : 'About Developer', href :'/about', icon:User}
   ];
 
   return (
